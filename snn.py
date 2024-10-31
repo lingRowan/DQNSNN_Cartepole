@@ -38,11 +38,13 @@ class Convolution(nn.Module):
         weight_mean (float, optional): Mean of the initial random weights. Default: 0.8
         weight_std (float, optional): Standard deviation of the initial random weights. Default: 0.02
     """
-    def __init__(self, in_channels, out_channels, kernel_size, weight_mean=0.8, weight_std=0.02):
+    def __init__(self, in_channels, out_channels, kernel_size,  weight_mean=0.8, weight_std=0.02):
         super(Convolution, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = to_pair(kernel_size)
+        self.weights = nn.Parameter(torch.clamp(torch.randn(out_channels, in_channels, kernel_size, kernel_size), min=0))
+        #self.weights = nn.Parameter(torch.randn(out_channels, in_channels, kernel_size, kernel_size))
         #self.weight_mean = weight_mean
         #self.weight_std = weight_std
 
@@ -55,17 +57,22 @@ class Convolution(nn.Module):
 
         # Parameters
         self.weight = Parameter(torch.Tensor(self.out_channels, self.in_channels, *self.kernel_size))
+        # Initialize weights using Kaiming Normal Initialization
+        torch.nn.init.kaiming_normal_(self.weight, mode='fan_out', nonlinearity='relu')  # For ReLU activations
         self.weight.requires_grad_(False) # We do not use gradients
-        self.reset_weight(weight_mean, weight_std)
+        self.reset_weight()
 
-    def reset_weight(self, weight_mean=0.8, weight_std=0.02):
+    '''def reset_weight(self, weight_mean=0.8, weight_std=0.02):
         """Resets weights to random values based on a normal distribution.
 
         Args:
             weight_mean (float, optional): Mean of the random weights. Default: 0.8
             weight_std (float, optional): Standard deviation of the random weights. Default: 0.02
         """
+        self.weight.normal_(weight_mean, weight_std)'''
+    def reset_weight(self,  weight_mean=0.8, weight_std=0.02):
         self.weight.normal_(weight_mean, weight_std)
+        self.weight.clamp_(0, 1)
 
     def load_weight(self, target):
         """Loads weights with the target tensor.
@@ -207,6 +214,50 @@ class STDP(nn.Module):
             in_tensor = input_latencies[:,winner[-2]:winner[-2]+self.conv_layer.kernel_size[-2],winner[-1]:winner[-1]+self.conv_layer.kernel_size[-1]]
             result.append(torch.ge(in_tensor,out_tensor))
         return result
+    '''def get_pre_post_ordering(self, input_spikes, output_spikes, winners):
+        print("Winners:", winners)
+    
+    # Accumulating input and output spikes to get latencies
+        input_latencies = torch.sum(input_spikes, dim=0)
+        output_latencies = torch.sum(output_spikes, dim=0)
+        result = []
+    
+        for winner in winners:
+            if winner is None:
+                print("Skipping None winner")
+            continue
+        
+        # Extract the latencies for this winner from output latencies
+            output_latency_for_winner = output_latencies[winner]
+        
+        # Debug: Print the output latency for the winner and its shape
+            print("Output Latency for Winner:", output_latency_for_winner)
+            print("Shape:", output_latency_for_winner.shape)
+        
+        # Check if the output latency is a scalar or a tensor
+            if output_latency_for_winner.dim() == 0:  # Scalar case
+                out_tensor = output_latency_for_winner.view(1, 1).expand(self.conv_layer.kernel_size)
+            else:  # Tensor case
+                out_tensor = output_latency_for_winner
+        
+        # Slicing input tensor
+            in_tensor = input_latencies[:, 
+                                     winner[-2]:winner[-2] + self.conv_layer.kernel_size[-2], 
+                                     winner[-1]:winner[-1] + self.conv_layer.kernel_size[-1]]
+        
+        # Ensure dimensions matching for comparison
+            if out_tensor.dim() != in_tensor.dim():
+                reshape_size = in_tensor.shape[1:]  # Matching shape of in_tensor
+                out_tensor = out_tensor.view(1, *reshape_size) 
+        
+        
+            result.append(torch.ge(in_tensor, out_tensor))
+        
+        return result'''
+
+
+
+
 
     # simple STDP rule
     # gets prepost pairings, winners, weights, and learning rates (all shoud be tensors)
@@ -222,6 +273,28 @@ class STDP(nn.Module):
 
         self.conv_layer.weight += lr * ((self.conv_layer.weight-self.lower_bound) * (self.upper_bound-self.conv_layer.weight) if self.use_stabilizer else 1)
         self.conv_layer.weight.clamp_(self.lower_bound, self.upper_bound)
+    
+    '''def forward(self, input_spikes, potentials, output_spikes, winners=None, kwta=1, inhibition_radius=0):
+        if winners is None:
+            winners = get_k_winners(potentials, kwta, inhibition_radius, output_spikes)
+
+        pairings = self.get_pre_post_ordering(input_spikes, output_spikes, winners)
+    
+    # Debugging: Check the lengths of winners and pairings
+        print("Number of winners:", len(winners))
+        print("Number of pairings:", len(pairings))
+    
+        lr = torch.zeros_like(self.conv_layer.weight)
+    
+    # Use min to avoid index out of range errors
+        for i in range(min(len(winners), len(pairings))):
+            f = winners[i][0]
+            lr[f] = torch.where(pairings[i], *(self.learning_rate[f]))
+
+        self.conv_layer.weight += lr * ((self.conv_layer.weight - self.lower_bound) * 
+                                      (self.upper_bound - self.conv_layer.weight) if self.use_stabilizer else 1)
+        self.conv_layer.weight.clamp_(self.lower_bound, self.upper_bound)'''
+
     
 
     def update_learning_rate(self, feature, ap, an):

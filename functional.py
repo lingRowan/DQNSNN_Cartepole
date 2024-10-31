@@ -184,6 +184,7 @@ def get_k_winners(potentials, kwta = 1, inhibition_radius = 0, spikes = None):
     for k in range(kwta):
         max_val,max_idx = total.view(-1).max(0)
         if max_val.item() != 0:
+            print(f"Selected winner: index={max_idx.item()}, value={max_val.item()}")
             # finding the 3d position of the maximum value
             max_idx_unraveled = np.unravel_index(max_idx.item(),global_pooling_size)
             # adding to the winners list
@@ -197,6 +198,9 @@ def get_k_winners(potentials, kwta = 1, inhibition_radius = 0, spikes = None):
                 total[:,rowMin:rowMax,colMin:colMax] = 0
         else:
             break
+        #while len(winners) < 4:
+         #   winners.append(None) 
+    print(f"Final winners: {winners}")
     return winners
 
 # decrease lateral intencities by factors given in the inhibition_kernel
