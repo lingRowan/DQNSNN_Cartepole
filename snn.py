@@ -43,12 +43,13 @@ class Convolution(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = to_pair(kernel_size)
-        self.weights = nn.Parameter(torch.clamp(torch.randn(out_channels, in_channels, kernel_size, kernel_size), min=0))
-        #self.weights = nn.Parameter(torch.randn(out_channels, in_channels, kernel_size, kernel_size))
-        #self.weight_mean = weight_mean
-        #self.weight_std = weight_std
+        self.weight = Parameter(torch.Tensor(self.out_channels, self.in_channels, *self.kernel_size))
+        #self.weights = nn.Parameter(torch.clamp(torch.randn(out_channels, in_channels, kernel_size, kernel_size), min=0))
 
-        # For future use
+        self.weight_mean = weight_mean
+        self.weight_std = weight_std
+
+        # For future use     
         self.stride = 1
         self.bias = None
         self.dilation = 1
@@ -57,23 +58,27 @@ class Convolution(nn.Module):
 
         # Parameters
         self.weight = Parameter(torch.Tensor(self.out_channels, self.in_channels, *self.kernel_size))
-        # Initialize weights using Kaiming Normal Initialization
-        torch.nn.init.kaiming_normal_(self.weight, mode='fan_out', nonlinearity='relu')  # For ReLU activations
         self.weight.requires_grad_(False) # We do not use gradients
         self.reset_weight()
 
-    '''def reset_weight(self, weight_mean=0.8, weight_std=0.02):
+    def reset_weight(self, weight_mean=0.8, weight_std=0.02):
         """Resets weights to random values based on a normal distribution.
 
         Args:
             weight_mean (float, optional): Mean of the random weights. Default: 0.8
             weight_std (float, optional): Standard deviation of the random weights. Default: 0.02
         """
-        self.weight.normal_(weight_mean, weight_std)'''
-    def reset_weight(self,  weight_mean=0.8, weight_std=0.02):
         self.weight.normal_(weight_mean, weight_std)
-        self.weight.clamp_(0, 1)
+        #torch.nn.init.kaiming_normal_(self.weight, mode='fan_out', nonlinearity='relu') #no firing
+        #torch.nn.init.xavier_normal_(self.weight, gain=nn.init.calculate_gain('sigmoid')) # no firing
+        #torch.nn.init.normal_(self.weight, mean=0.0, std=1.0) # no firing
+        #torch.nn.init.uniform_(self.weight, a=-0.1, b=0.1) # no firing
+        #torch.nn.init.orthogonal_(self.weight, gain=nn.init.calculate_gain('relu')) # no firing
+        #torch.nn.init.constant_(self.weight, 0.0) # no firing
 
+
+        #self.weight.clamp_(0, 1)
+        
     def load_weight(self, target):
         """Loads weights with the target tensor.
 
@@ -83,7 +88,7 @@ class Convolution(nn.Module):
         self.weight.copy_(target)	
 
     def forward(self, input):
-        return fn.conv2d(input, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
+        return fn.conv2d(input, self.weight, self.bias, self.stride, self.padding , self.dilation, self.groups)
 
 class Pooling(nn.Module):
     r"""Performs a 2D max-pooling over an input signal (spike-wave or potentials) composed of several input
@@ -262,6 +267,7 @@ class STDP(nn.Module):
     # simple STDP rule
     # gets prepost pairings, winners, weights, and learning rates (all shoud be tensors)
     def forward(self, input_spikes, potentials, output_spikes, winners=None, kwta = 1, inhibition_radius = 0):
+        #print('winners_potiential', potentials)
         if winners is None:
             winners = get_k_winners(potentials, kwta, inhibition_radius, output_spikes)
         pairings = self.get_pre_post_ordering(input_spikes, output_spikes, winners)
@@ -269,6 +275,7 @@ class STDP(nn.Module):
         lr = torch.zeros_like(self.conv_layer.weight)
         for i in range(len(winners)):
             f = winners[i][0]
+
             lr[f] = torch.where(pairings[i], *(self.learning_rate[f]))
 
         self.conv_layer.weight += lr * ((self.conv_layer.weight-self.lower_bound) * (self.upper_bound-self.conv_layer.weight) if self.use_stabilizer else 1)
