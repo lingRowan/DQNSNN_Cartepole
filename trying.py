@@ -125,8 +125,8 @@ class SNN(nn.Module):
             self.pool = Pooling(kernel_size=5, stride=1, padding=1)
             self.conv = Convolution(input_channels, self.number_of_features, 3, 0.8, 0.05)
             self.conv.reset_weight()
-            self.stdp = STDP(conv_layer=self.conv, learning_rate=(0.05, -0.015), use_stabilizer = True, lower_bound = 0, upper_bound = 1)
-            self.anti_stdp = STDP(conv_layer=self.conv, learning_rate=(-0.05, 0.0005),use_stabilizer = True, lower_bound = 0, upper_bound = 1)
+            self.stdp = STDP(conv_layer=self.conv, learning_rate=(0.09, -0.5), use_stabilizer = True, lower_bound = 0, upper_bound = 1)
+            self.anti_stdp = STDP(conv_layer=self.conv, learning_rate=(-0.5, 0.05),use_stabilizer = True, lower_bound = 0, upper_bound = 1)
         
         # internal state of the model
             self.ctx = {"input_spikes": None, "potentials": None, "output_spikes": None, "winners": None}
@@ -142,6 +142,7 @@ class SNN(nn.Module):
             x = self.pool(x)
             p = self.conv(x)
             spikes, potentials = fire(potentials=p, threshold=20, return_thresholded_potentials=True)
+            #print('potenials', potentials)
             winners = get_k_winners(potentials=p, kwta=1, inhibition_radius=0, spikes=spikes)
             self.ctx["input_spikes"] = x
             self.ctx["potentials"] = potentials
@@ -160,14 +161,17 @@ class SNN(nn.Module):
 
 
         def reward(self, reward):
-            if reward.item() >= 0:  
-                print('Positive Reward', reward.item())
+            if reward > 0:
+                print('True', reward.item())
+                print()
                 self.stdp(self.ctx["input_spikes"], self.ctx["potentials"], self.ctx["output_spikes"], self.ctx["winners"])
 
-            elif reward.item() < 0:  
-                print('Severe Failure', reward.item())
+            else:
+                print('False', reward.item())
+                print()
                 self.anti_stdp(self.ctx["input_spikes"], self.ctx["potentials"], self.ctx["output_spikes"], self.ctx["winners"])
-            
+           
+       
 def get_cart_location(screen_width):
     world_width = env.x_threshold * 2
     scale = screen_width / world_width
@@ -193,12 +197,6 @@ def get_screen():
         image = Image.fromarray(screen[:, :, 0]) 
 
     return image
-   
-def join_image(img1, img2):
-    img = Image.new('L', (img1.width + img2.width, img1.height))
-    img.paste(img1, (0, 0))
-    img.paste(img2, (img1.width, 0))
-    return img
 
 env.reset()
 '''plt.figure()
@@ -216,25 +214,9 @@ print("Screen height: ", screen_height, " | Width: ", screen_width)
 n_actions = env.action_space.n
 
 # Initialize policy and target networks
-model = SNN(4, 50, 2)
+model = SNN(4, 20, 2)
 
 memory = ReplayMemory(MEMORY_SIZE)
-
-def select_action(state):
-    global steps_done
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-        math.exp(-1. * steps_done / EPS_DECAY)
-    steps_done += 1
-
-    action = model.forward(state)
-    
-    if random.random() > eps_threshold:
-        return action  
-    else:
-        print('RANDOM')
-        return random.randrange(n_actions)
-
-
 
 steps_done = 0
 
@@ -270,58 +252,29 @@ mean_last = deque([0] * LAST_EPISODES_NUM, LAST_EPISODES_NUM)
 for i_episode in range(N_EPISODES):
     env.reset()
     init_screen = get_screen()  
-    screens = deque([init_screen] * FRAMES, maxlen=FRAMES)
-    '''if i_episode > 0 and i_episode % 50 == 0:  
-      model.conv.reset_weight()'''
+    
     
     for t in count():
         
-        state = join_image(*list(screens))  
+        state = init_screen
         #action = model.forward(state)
         action = model.forward(state)
         print('Action ', action)
+        
         weights = model.get_weights()
         #print('weight', weights)
         state_variables, _, done, _, _= env.step(action)
         new_image = get_screen()
-        screens.append(new_image)
-        next_state = join_image(*list(screens))  
+        next_state = new_image 
         position, velocity, angle, angular_velocity = state_variables
-        '''r1 = (env.x_threshold - abs(position)) / env.x_threshold - 0.8
+        r1 = (env.x_threshold - abs(position)) / env.x_threshold - 0.8
         r2 = (env.theta_threshold_radians - abs(angle)) / env.theta_threshold_radians - 0.5
         reward = r1 + r2
         reward = torch.tensor([reward], device=device)
-
-        
         model.reward(reward)
-        #print('angle', env.theta_threshold_radians)
+        #print('reward_after', reward.item())
 
-        if t >= END_SCORE - 1:
-            reward += 20
-            done = True
-        elif done:
-            reward -= 20 '''
-        # Get thresholds
-        theta_threshold = env.theta_threshold_radians
-        x_threshold = env.x_threshold
-        angle_reward = 0.5 - (abs(angle) / theta_threshold)  
-        position_reward = 0.5 - (abs(position) / x_threshold)  
-        reward = angle_reward + position_reward
-        if abs(position) > (0.5 * x_threshold):
-            reward -= 0.5  
-        if abs(angle) > (0.5 * theta_threshold):
-            reward -= 0.5  
-        if abs(angle) >= theta_threshold or abs(position) >= x_threshold:
-            reward = -10.0  
-        reward = torch.tensor([reward], device=device)
-
-        model.reward(reward)
-        '''if t >= END_SCORE - 1:
-            reward += 20
-            done = True
-        elif done:
-            reward -= 20 '''
-
+    
         memory.push(state, action, next_state, reward)
         state = next_state
         
@@ -332,11 +285,18 @@ for i_episode in range(N_EPISODES):
             mean = sum(mean_last) / LAST_EPISODES_NUM
             
             if mean < TRAINING_STOP and not stop_training:
-                model.reward(reward)
+               # model.reward(reward)
+                pass
             else:
                 stop_training = True
 
             break
+
+        
+        #model.reward(reward)
+        #print('angle', env.theta_threshold_radians)
+
+       
 
 '''for i_episode in range(N_EPISODES):
     env.reset()
