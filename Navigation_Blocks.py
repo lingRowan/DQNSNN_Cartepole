@@ -132,7 +132,7 @@ class CustomNavigationEnv(gym.Env):
         # Check if the next position hits a block
         if tuple(next_position) in self.blocks:
             # Punish for hitting a block
-            current_reward = -0.9
+            current_reward = -0.5
             # Stay in the previous position
             self.current_position = self.previous_position
         else:
@@ -144,9 +144,9 @@ class CustomNavigationEnv(gym.Env):
 
             # Reward logic
             if current_distance < previous_distance:
-                current_reward = 0.5 
+                current_reward = 0.2 
             elif current_distance > previous_distance:
-                current_reward = -0.5  # Penalty for moving away from the goal
+                current_reward = -0.2  # Penalty for moving away from the goal
             else:
                 current_reward = 0  # No change in distance
 
@@ -252,7 +252,7 @@ class SNN(nn.Module):
         self.number_of_features = features_per_class * number_of_classes
         self.pool = Pooling(kernel_size=5, stride=1, padding=1)
         self.conv = Convolution(input_channels, self.number_of_features, 3, 0.8, 0.05)
-        self.stdp = STDP(conv_layer=self.conv, learning_rate=(0.005, -0.15), use_stabilizer=True, lower_bound=0, upper_bound=1)
+        self.stdp = STDP(conv_layer=self.conv, learning_rate=(0.008, -0.0005), use_stabilizer=True, lower_bound=0, upper_bound=1)
         self.anti_stdp = STDP(conv_layer=self.conv, learning_rate=(-0.05, 0.0005), use_stabilizer=True, lower_bound=0, upper_bound=1)
         
         # Internal state of the model
