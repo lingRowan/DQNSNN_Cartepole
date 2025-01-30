@@ -1,9 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as fn
-#from . import functional as sf
 from torch.nn.parameter import Parameter
-#from .utils import to_pair
 from utils import *
 from functional import *
 
@@ -70,15 +68,14 @@ class Convolution(nn.Module):
             weight_std (float, optional): Standard deviation of the random weights. Default: 0.02
         """
         self.weight.normal_(weight_mean, weight_std)
-        #torch.nn.init.kaiming_normal_(self.weight, mode='fan_out', nonlinearity='relu') #no firing
-        #torch.nn.init.xavier_normal_(self.weight, gain=nn.init.calculate_gain('sigmoid')) # no firing
-        #torch.nn.init.normal_(self.weight, mean=0.0, std=1.0) # no firing
-        #torch.nn.init.uniform_(self.weight, a=-0.1, b=0.1) # no firing
-        #torch.nn.init.orthogonal_(self.weight, gain=nn.init.calculate_gain('relu')) # no firing
-        #torch.nn.init.constant_(self.weight, 0.0) # no firing
-
-
-        #self.weight.clamp_(0, 1)
+        
+    '''def normalize_weights(self, scale=0.5, shift=0.2):
+        """Normalize weights using the scale and shift."""
+        weights = self.weight
+        mean = weights.mean()
+        std = weights.std()
+        normalized_weights = (weights - mean) / (std + 1e-5) 
+        self.weight.data = scale * normalized_weights + shift'''
         
     def load_weight(self, target):
         """Loads weights with the target tensor.
@@ -223,7 +220,7 @@ class STDP(nn.Module):
 
     # simple STDP rule
     # gets prepost pairings, winners, weights, and learning rates (all shoud be tensors)
-    def forward(self, input_spikes, potentials, output_spikes, winners=None, kwta = 1, inhibition_radius = 0):
+    def forward(self, input_spikes, potentials, output_spikes, winners=None, kwta = 1, inhibition_radius = 0, noise_std=0.000001):
         #print('winners_potiential', potentials)
         if winners is None:
             winners = get_k_winners(potentials, kwta, inhibition_radius, output_spikes)
@@ -236,6 +233,9 @@ class STDP(nn.Module):
             lr[f] = torch.where(pairings[i], *(self.learning_rate[f]))
 
         weight_update = lr * ((self.conv_layer.weight-self.lower_bound) * (self.upper_bound-self.conv_layer.weight) if self.use_stabilizer else 1)
+        # Add noise to the weight update
+        #noise = torch.randn_like(weight_update) * noise_std
+        #weight_update += noise
         nonzero_indices = torch.nonzero(weight_update, as_tuple = False)
         nonzero_values = weight_update[tuple(nonzero_indices.t())]
         #print('index: ', nonzero_indices)
@@ -248,8 +248,22 @@ class STDP(nn.Module):
         #print(self.conv_layer.weight)
         self.conv_layer.weight.clamp_(self.lower_bound, self.upper_bound)
 
-    
+    def normalize_weights(self):
+        connectivity_matrix = self.conv_layer.weight
 
+    # Calculate the sum across each output channel (dim 1)
+        channel_sums = connectivity_matrix.sum(dim=(1, 2, 3), keepdim=True)
+
+    # Avoid division by zero by adding a small constant (epsilon)
+        epsilon = 1e-10
+        normalized_weights = connectivity_matrix / (channel_sums + epsilon)
+
+    # Scale the normalized weights to retain the sum of nonzero values
+        total_nonzero_sum = self.conv_layer.weight[self.conv_layer.weight > 0].sum()
+        self.conv_layer.weight.data = normalized_weights * total_nonzero_sum
+
+    
+    
     def update_learning_rate(self, feature, ap, an):
         r"""Updates learning rate for a specific feature map.
 

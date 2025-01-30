@@ -11,6 +11,7 @@ import torch.optim as optim
 import torchvision.transforms as T
 from collections import deque
 from snn import *
+from snn import Convolution
 from functional import *
 from utils import *
 from torchvision import transforms
@@ -24,10 +25,10 @@ EPS_START = 0.9
 EPS_END = 0.05
 EPS_DECAY = 1000
 TARGET_UPDATE = 50
-MEMORY_SIZE = 10000
+MEMORY_SIZE = 500
 END_SCORE = 200
 TRAINING_STOP = 142
-N_EPISODES = 500
+N_EPISODES = 1000
 LAST_EPISODES_NUM = 20
 FRAMES = 2
 RESIZE_PIXELS = 60
@@ -278,15 +279,16 @@ class SNN(nn.Module):
         self.number_of_features = features_per_class * number_of_classes
         self.pool = Pooling(kernel_size=5, stride=1, padding=1)
         self.conv = Convolution(input_channels, self.number_of_features, 3, 0.8, 0.05)
-        # Updated STDP and anti-STDP learning rates  
-        self.stdp1 = STDP(conv_layer=self.conv, learning_rate=(0.009, -0.0001), use_stabilizer=True, lower_bound=0, upper_bound=1)
-        self.stdp2 = STDP(conv_layer=self.conv, learning_rate=(0.001, -0.00001), use_stabilizer=True, lower_bound=0, upper_bound=1) 
-        self.stdp3 = STDP(conv_layer=self.conv, learning_rate=(0.005, -0.00005), use_stabilizer=True, lower_bound=0, upper_bound=1)  
-
-        self.anti_stdp1 = STDP(conv_layer=self.conv, learning_rate=(-0.01, 0.00005), use_stabilizer=True, lower_bound=0, upper_bound=1)  
-        self.anti_stdp2 = STDP(conv_layer=self.conv, learning_rate=(-0.05, 0.0001), use_stabilizer=True, lower_bound=0, upper_bound=1) 
-        self.anti_stdp3 = STDP(conv_layer=self.conv, learning_rate=(-0.07, 0.0003), use_stabilizer=True, lower_bound=0, upper_bound=1) 
         
+        # Updated STDP and anti-STDP learning rates  
+        self.stdp1 = STDP(conv_layer=self.conv, learning_rate=(0.009, -0.0001), use_stabilizer=True, lower_bound=0, upper_bound=1) # reach to the goal
+        self.stdp2 = STDP(conv_layer=self.conv, learning_rate=(0.001, -0.00001), use_stabilizer=True, lower_bound=0, upper_bound=1) # closer to the goal
+        self.stdp3 = STDP(conv_layer=self.conv, learning_rate=(0.005, -0.00005), use_stabilizer=True, lower_bound=0, upper_bound=1)  # landmark
+
+        self.anti_stdp1 = STDP(conv_layer=self.conv, learning_rate=(-0.05, 0.00005), use_stabilizer=True, lower_bound=0, upper_bound=1)  # hit the block
+        self.anti_stdp2 = STDP(conv_layer=self.conv, learning_rate=(-0.09, 0.0001), use_stabilizer=True, lower_bound=0, upper_bound=1) # far away from the goal
+        self.anti_stdp3 = STDP(conv_layer=self.conv, learning_rate=(-0.01, 0.0003), use_stabilizer=True, lower_bound=0, upper_bound=1) # no change, no reward
+        #self.normalize_weights()
         
         # Internal state of the model
         self.ctx = {"input_spikes": None, "potentials": None, "output_spikes": None, "winners": None}
@@ -365,7 +367,6 @@ model = SNN(8, 40, 4)
 steps_done = 0
 episode_accuracies = []
 
-# New plotting function for accuracy
 def plot_accuracy(accuracy_scores):
     plt.figure(2)
     plt.clf()
@@ -380,19 +381,39 @@ def plot_accuracy(accuracy_scores):
     plt.grid()
     plt.pause(0.001)
 
+def calculate_optimal_steps(start, goal):
+    """Calculate Manhattan distance between start and goal."""
+    return abs(goal[0] - start[0]) + abs(goal[1] - start[1])
+
+rewards = 0
+#num_actions = 0
+punishment = 0
+optimal_path_count = 0
 # MAIN LOOP
 for i_episode in range(N_EPISODES):
     env.reset()
     init_screen = get_screen()  # Get the initial screen state
     screens = deque([init_screen] * FRAMES, FRAMES)  # Initialize the deque with frames
+    if N_EPISODES % 300 == 0:
+        model.stdp1.normalize_weights()
+        model.anti_stdp1.normalize_weights()
+        model.stdp2.normalize_weights()
+        model.anti_stdp2.normalize_weights()
+        model.stdp3.normalize_weights()
+        model.anti_stdp3.normalize_weights()
 
-    total_reward = 0
+    # Calculate the optimal steps
+    optimal_steps = calculate_optimal_steps(env.current_position, env.goal_position)
+    steps_no = 0
     num_actions = 0
+    total_reward = 0
     
     for t in count():
         state = torch.cat(list(screens), dim=1)  # Stack the frames for SNN input
         action = model.forward(state)  # Get the action from the SNN
         print('Action: ', action)
+        steps_no += 1
+        print('Agent Steps: ', steps_no)
         
         # Take action in the environment
         next_state, current_reward, done, _ = env.step(action)
@@ -404,11 +425,15 @@ for i_episode in range(N_EPISODES):
         if current_reward > 0:
             model.reward(current_reward)
             total_reward += 1
+            rewards += 1
         else:
             model.punish(current_reward)
+            punishment +=1
 
         
         if done:
+            if steps_no == 20:
+                optimal_path_count += 1
             # Calculate and log accuracy
             accuracy = total_reward / (num_actions + 1e-10)
             print('Accuracy: ', accuracy)
@@ -416,7 +441,9 @@ for i_episode in range(N_EPISODES):
 
             plot_accuracy(episode_accuracies)
             break
-
+print('Total Number of rewards: ', rewards)
+print('Total Number of punishments: ', punishment)
+print('Optimal Path Count: ', optimal_path_count)
 print('Complete')
 env.render()
 env.close()
