@@ -108,7 +108,7 @@ class CustomNavigationEnv(gym.Env):
 
         return fixed_blocks'''
     
-    def generate_random_blocks(self, num_blocks=4, min_distance=2):
+    def generate_random_blocks(self, num_blocks=2, min_distance=2):
         """ Generate random block positions ensuring they are at least 'min_distance' apart. """
         blocks = set()
     
