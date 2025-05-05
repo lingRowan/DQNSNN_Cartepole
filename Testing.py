@@ -108,7 +108,7 @@ class CustomNavigationEnv(gym.Env):
 
         return fixed_blocks'''
     
-    def generate_random_blocks(self, num_blocks=2, min_distance=2):
+    def generate_random_blocks(self, num_blocks=4, min_distance=2):
         """ Generate random block positions ensuring they are at least 'min_distance' apart. """
         blocks = set()
     
@@ -146,7 +146,7 @@ class CustomNavigationEnv(gym.Env):
         # Reset the agent's position to start at (0, 0)
         self.current_position = (0, 0)
         self.previous_position = (0, 0)
-        
+        self.steps = 0
         # Re-generate random blocks each time we reset
         
         #self.blocks = self.generate_fixed_blocks()
@@ -160,7 +160,7 @@ class CustomNavigationEnv(gym.Env):
         # Reset the agent's position to start at (0, 0)
         self.current_position = (0, 0)
         self.previous_position = (0, 0)
-        
+        self.steps = 0
         # Re-generate random blocks each time we reset
         
         #self.blocks = self.generate_fixed_blocks()
@@ -190,9 +190,7 @@ class CustomNavigationEnv(gym.Env):
             next_position[1] += 1
 
         current_reward = 0  # Default reward
-        if self.steps >= 100:
-            done = True
-            current_reward -= 3
+    
 
      #tree reward
     # if self.current_position == self.trees:
@@ -217,20 +215,24 @@ class CustomNavigationEnv(gym.Env):
             current_reward = -1
 
         # Goal reached
-        if self.current_position == self.goal_position:
-            if self.steps <= self.max_steps:
-                current_reward = 10
-            else:
-                current_reward = 5
-                done = True
+       # if self.current_position == self.goal_position:
+        #    if self.steps <= self.max_steps:
+         #       current_reward = 10
+          #  else:
+           #     current_reward = 5
+            #    done = True
        
         # Additional time penalty for exceeding max steps but not reaching the goal
            # if self.steps > self.max_steps:
             #    reward -= 3  # Time penalty, but episode continues
 
-          #  done = False  # The episode doesn't end
-
-        done = self.current_position == self.goal_position
+          #  done = False  # The episode doesn't end#
+            
+        if self.steps == 100:
+            done = True
+            current_reward -= 3
+        elif self.current_position == self.goal_position:
+            done = True
 
     # Update the state
         self.state = self.get_state()  # Get the updated state (grid)
@@ -541,6 +543,7 @@ for config_idx in range(20):
             else:
                 model.punish(current_reward)
                 total_reward += current_reward
+             
 
         
             if done:
@@ -559,10 +562,9 @@ for config_idx in range(20):
             # Calculate and log accuracy
                 Average_reward = total_reward / (num_actions + 1e-10)
                 print('Average reward per action: ', Average_reward)
-                if Average_reward >= 1.18:
+                if Average_reward >= 0.9:
                     with open("milestones.txt", "a") as f:
-                        if config_idx not in logged_configs:
-                            f.write(f"Config {config_idx} reached avg reward = 1.18 at episode {i_episode}\n")
+                        f.write(f"Config {config_idx} reached avg reward >= 0.9 at episode {i_episode}\n")
                 episode_accuracies.append(Average_reward)
 
                 plot_accuracy(episode_accuracies, window_size=10)
