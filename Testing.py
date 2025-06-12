@@ -108,7 +108,7 @@ class CustomNavigationEnv(gym.Env):
 
         return fixed_blocks'''
     
-    def generate_random_blocks(self, num_blocks=2, min_distance=2):
+    def generate_random_blocks(self, num_blocks=10, min_distance=2):
         """ Generate random block positions ensuring they are at least 'min_distance' apart. """
         blocks = set()
     
@@ -558,19 +558,22 @@ for config_idx in range(20):
                     total_steps = steps_no
                     print('total number of agent steps: ',total_steps)
 
+                differences = steps_no - optimal_steps
+                if differences == 0:
+                    with open("different.txt", "a") as f:
+                        f.write(f"Config {config_idx} reached avg reward >= 0.9 at episode {i_episode}\n")
                 difference.append(steps_no - optimal_steps)
+
+
             # Calculate and log accuracy
                 Average_reward = total_reward / (num_actions + 1e-10)
                 print('Average reward per action: ', Average_reward)
-                if Average_reward >= 0.9:
-                    with open("milestones.txt", "a") as f:
-                        f.write(f"Config {config_idx} reached avg reward >= 0.9 at episode {i_episode}\n")
-                episode_accuracies.append(Average_reward)
+                
 
-                plot_accuracy(episode_accuracies, window_size=10)
+                #plot_accuracy(episode_accuracies, window_size=10)
                 #steps_per_episode.append(steps_no) 
                 #plot_steps(steps_per_episode, window_size = 10)
-                 #plot_difference(difference, window_size = 10)
+                plot_difference(difference, window_size = 10)
                 
                 print('optimal steps', optimal_steps)
                 break

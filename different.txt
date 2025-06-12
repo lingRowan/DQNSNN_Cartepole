@@ -1,0 +1,17 @@
+Config 0 reached avg reward >= 0.9 at episode 14
+Config 1 reached avg reward >= 0.9 at episode 11
+Config 2 reached avg reward >= 0.9 at episode 17
+Config 3 reached avg reward >= 0.9 at episode 18
+Config 4 reached avg reward >= 0.9 at episode 12
+Config 5 reached avg reward >= 0.9 at episode 171
+Config 6 reached avg reward >= 0.9 at episode 43
+Config 7 reached avg reward >= 0.9 at episode 30
+Config 8 reached avg reward >= 0.9 at episode 84
+Config 9 reached avg reward >= 0.9 at episode 207
+Config 10 reached avg reward >= 0.9 at episode 127
+Config 11 reached avg reward >= 0.9 at episode 0
+Config 13 reached avg reward >= 0.9 at episode 268
+Config 14 reached avg reward >= 0.9 at episode 2
+Config 15 reached avg reward >= 0.9 at episode 21
+
+
