@@ -1,0 +1,21 @@
+Config 0 reached difference = 0 at episode 10
+Config 1 reached difference = 0 at episode 17
+Config 2 reached difference = 0 at episode 1
+Config 3 reached difference = 0 at episode 8
+Config 4 reached difference = 0 at episode 6
+Config 5 reached difference = 0 at episode 22
+Config 6 reached difference = 0 at episode 153
+Config 7 reached difference = 0 at episode 38
+Config 8 reached difference = 0 at episode 43
+Config 9 reached difference = 0 at episode 1
+Config 10 reached difference = 0 at episode 73
+Config 11 reached difference = 0 at episode 2
+Config 13 reached difference = 0 at episode 1
+Config 14 reached difference = 0 at episode 262
+Config 16 reached difference = 0 at episode 198
+Config 17 reached difference = 0 at episode 634
+Config 18 reached difference = 0 at episode 66
+Config 19 reached difference = 0 at episode 19
+
+
+
